@@ -1,53 +1,41 @@
-// Import Package
 const express = require('express');
 const bodyParser = require('body-parser');
-const axios = require('axios'); // Using Axios for HTTP requests
+const mysql = require('mysql2/promise');
 
-// Set Package
 const app = express();
 
-app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.urlencoded({ extended: false }))
 
-// Server Start Notification
 app.listen(process.env.PORT || 3000, () => console.log("Server Started on port 3000..."));
 
-// Get Index Page Request
 app.get('/', function (req, res) {
     res.sendFile('index.html', { root: __dirname });
 });
 
-// POST route from contact form
 app.post('/contact', async (req, res) => {
     try {
-        // Validate form using Google Cloud Function
-        const validationResult = await validateFormCloudFunction(req.body);
-        
-        if (!validationResult.valid) {
-            return res.send(`<h1 style="color: red">${validationResult.message}</h1>`);
-        }
+        const formData = req.body;
 
-        // Continue with other processing if validation passes
+        // Connect to the MySQL database
+        const connection = await mysql.createConnection({
+            host: '34.123.212.180',
+            user: 'root',
+            password: '',
+            database: 'formdata'
+        });
 
-        // You can handle the form data or other actions here
+        // Insert form data into the ContactForm table
+        await connection.execute(
+            'INSERT INTO ContactForm (name, email, subject, message) VALUES (?, ?, ?, ?)',
+            [formData.name, formData.email, formData.subject, formData.message]
+        );
+
+        // Close the database connection
+        await connection.end();
 
         res.send('<h1 style="color: green">Thank You, Message has been Sent.</h1>');
     } catch (error) {
-        console.error(error);
+        console.error('Error inserting data into the database:', error.message);
         res.status(500).send('<h1 style="color: red">Internal Server Error.</h1>');
     }
 });
-
-// Function to validate form using Google Cloud Function
-async function validateFormCloudFunction(formData) {
-    try {
-        const cloudFunctionUrl = 'https://us-central1-natural-point-395510.cloudfunctions.net/validateForm'; // Replace with your Cloud Function URL
-
-        // Make a POST request to your Cloud Function for form validation
-        const response = await axios.post(cloudFunctionUrl, formData);
-
-        return response.data;
-    } catch (error) {
-        console.error('Error validating form:', error.message);
-        return { valid: false, message: 'Form validation failed.' };
-    }
-}
